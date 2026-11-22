@@ -15,9 +15,10 @@ dependencies = ["numpy", "pybullet"]
 [project.optional-dependencies]
 test = ["pytest"]
 preview = ["matplotlib"]
+gpu = ["warp-lang>=1.19"]
 
 [tool.setuptools]
-packages = ["rescuesim"]
+packages = ["rescuesim", "gpusim"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

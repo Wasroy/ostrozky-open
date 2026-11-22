@@ -69,3 +69,15 @@ def test_targets_hidden_somewhere_but_visible_from_a_low_viewpoint(kind):
         vis = pose_visibility(lay, k + 1)
         assert vis["low_visible"] >= 1, (kind, k + 1, vis)
         assert vis["hidden_any"] >= 1, (kind, k + 1, vis)
+
+
+@pytest.mark.parametrize("kind", TERRAIN_TYPES)
+def test_every_prop_collides(kind):
+    """Every collidable prim must exist in the PyBullet collision world (PyBullet drops compound children past 16)."""
+    prims = get_layout(kind).prims
+    cw = CollisionWorld(list(prims))
+    try:
+        present = sum(len(p.getCollisionShapeData(uid, -1, physicsClientId=cw.cid)) for uid in cw.prop_bodies)
+    finally:
+        cw.close()
+    assert present == sum(pr.collides for pr in prims)

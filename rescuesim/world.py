@@ -56,6 +56,9 @@ def prim_mesh(prim: Prim) -> tuple:
 
 
 # =============================================================================
+COMPOUND_MAX = 16
+
+
 class CollisionWorld:
     """Static props as compound collision bodies (one per tile; bushes separate)."""
 
@@ -70,8 +73,9 @@ class CollisionWorld:
         self.prop_bodies: list[int] = []
         self.bush_bodies: set[int] = set()
         for (key, bush), lst in sorted(groups.items()):
-            for k in range(0, len(lst), 200):
-                uid = self._compound(lst[k:k + 200])
+            # PyBullet keeps at most 16 child shapes per compound: larger chunks silently drop collisions
+            for k in range(0, len(lst), COMPOUND_MAX):
+                uid = self._compound(lst[k:k + COMPOUND_MAX])
                 self.prop_bodies.append(uid)
                 if bush:
                     self.bush_bodies.add(uid)

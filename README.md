@@ -157,6 +157,66 @@ shortcuts give pixel-identical images (tested). Round shapes are drawn as low-po
 that circumscribe the collision primitive (icosahedra for spheres, octagonal prisms for
 cylinders), so depth never shows free space where there is a collision surface.
 
+## GPU simulator (training)
+
+`gpusim/` runs thousands of rescuesim flights at once on an NVIDIA GPU (NVIDIA Warp), for
+training policies. The GPU engine was originally written by @sckoott (OSTROZKY team) for the
+EDTH Paris 2026 hackathon and has been ported to rescuesim, which is its reference: same
+terrains (built by rescuesim itself), dynamics and controller, cameras, sensor noise models,
+starts (identical for the same `(seed, terrain, run)`), and outcome rules.
+
+```
+pip install -e .[gpu]                      # warp-lang >= 1.19, CUDA GPU
+```
+
+```python
+from gpusim import FastBatchEnv
+
+env = FastBatchEnv(n=1024, terrains=("field", "forest", "village", "city", "rubble"),
+                   seed=0, obs="pooled", noise=True, timeout_s=120)
+obs = env.reset()                          # or reset(idx, terrains=["city@v3", ...], runs=[...])
+obs, done, outcome, info = env.step(actions)   # actions (N, 4); outcome codes in gpusim.OUTCOMES
+env.reset(idx=done.nonzero()[0])           # finished flights stay frozen until reset
+one = env.single(obs, 0)                   # rescuesim observation dict (obs="full" for depth_m)
+```
+
+One fused kernel per step does the 8 physics sub-steps and the contact test of every drone;
+depth (with its noise, min-pooled to 9 x 16 for `obs="pooled"`) and the detector box are
+ray-cast on the GPU against the same triangles rescuesim renders; IMU, VIO, detector misses
+and jitter are applied on the host. `gpusim.dynamics` is the same dynamics in batched NumPy
+(no Warp needed).
+
+Measured with `python -m gpusim.validate` (RTX 3050 Laptop, 4 GB):
+
+| check | result |
+|---|---|
+| open-loop dynamics, 8 manoeuvres x 4 s | max 0.03 cm position, 0.01 deg attitude error (float32); NumPy version exact |
+| contacts, 1000 straight paths into props / boxes (821 touch) | first contact on the same 1/240 s sub-step with the same body in 98.8 %, 1 sub-step early (sub-mm grazing) in 1.0 %, other 0.2 % |
+| rendering, 150 poses on the 5 terrains, noise off | depth median error 0.000 cm, p99 0.14 cm, sky/hit mismatch 0.001 %; detector box pixel-identical in 75/75 frames |
+| end to end, team agent (`handin`), 50 flights (5 terrains x v1..v10) | identical starts; success 90 % rescuesim, 84 % gpusim; outcome agreement 82 % (gpusim noise), 88 % (`noise="rescuesim"`: rescuesim's own noise samples); rescuesim against itself with other noise samples: 84 % success, 86 % agreement |
+| speed, `obs="pooled"` | 24 k (n = 256), 30 k (n = 1024 and 4096) drone-steps/s |
+| speed, `obs="full"` | 17 k (n = 256 and 1024) drone-steps/s |
+
+```
+python -m gpusim.validate                  # everything (~15 min; e2e uses all CPU cores)
+python -m gpusim.validate --only dynamics render speed --quick
+python -m pytest tests/test_gpusim.py      # skipped without warp-lang / CUDA
+```
+
+The end-to-end disagreements are not a bias but the chaos of closed-loop flight: fed the same
+noise samples, a gpusim flight stays within 1 mm of the rescuesim flight for 5-30 s, until a few
+silhouette pixels of the depth image (ray-cast vs rasterised edges; e.g. 4 of 28224) flip a
+discrete decision of the agent; with other noise, rescuesim disagrees with itself as often. On
+96 city flights (the most sensitive terrain), success is 40 % in rescuesim and 34 % in gpusim.
+
+Differences from rescuesim: the noise of a flight is drawn by a counter-based generator keyed by
+`(seed, terrain, run, step)` (reproducible per flight whatever the batch, same distributions,
+not the same samples as rescuesim's sequential Generator), and contacts are computed
+analytically against the exact primitives, where PyBullet reports a grazing contact up to
+~0.7 mm later. gpusim reads back which props collide in rescuesim's PyBullet world, so the two
+always agree; every collidable prop does collide (rescuesim splits its compound bodies into
+chunks of 16, PyBullet's per-compound limit, and `tests/test_terrain.py` checks it).
+
 ## Known limits
 
 * The detector is synthetic: ground-truth segmentation plus misses and jitter; no false
