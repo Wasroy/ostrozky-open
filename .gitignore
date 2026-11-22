@@ -3,3 +3,5 @@ __pycache__/
 eval_out/
 .pytest_cache/
 *.egg-info/
+videos/
+*.mp4

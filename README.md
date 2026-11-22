@@ -147,6 +147,17 @@ one env and one `Agent` per (terrain, pose) job in parallel processes, times `ac
 per terrain type under `terrains` and under `overall`). `--log` writes one compressed
 `.npz` per flight.
 
+### Filming a flight
+
+```
+python tools/video_flight.py --agent handin --terrain rubble@v8 --seed 0 --run 0 --out videos/rubble_v8.mp4
+```
+
+Replays the flight exactly as `evaluate` flies it (same seed and run) and writes a 30 fps MP4:
+a chase camera with the drone drawn in, the onboard camera with the detector box, the depth
+image, a minimap of the path, and the agent's phase and telemetry. Needs `ffmpeg` on the PATH
+and Pillow; about 0.3 s of rendering per flight step on one CPU core.
+
 ## Performance notes
 
 TinyRenderer's cost grows with every triangle in the scene, on screen or not. Props are
