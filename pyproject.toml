@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rescuesim"
+version = "0.1.0"
+description = "Small open drone search-and-touch simulator (PyBullet + NumPy)"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "OSTROZKY team contributors" }]
+requires-python = ">=3.12"
+dependencies = ["numpy", "pybullet"]
+
+[project.optional-dependencies]
+test = ["pytest"]
+preview = ["matplotlib"]
+
+[tool.setuptools]
+packages = ["rescuesim"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
